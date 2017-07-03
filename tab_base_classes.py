@@ -257,6 +257,7 @@ class Tab(object):
         self._changed_layout = self._ui.changed_layout
         self._changed_widget.hide()        
         self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
+        self.worker_host = self.settings['connection_table'].find_by_name(self.device_name).worker_host
         self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
         elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
         elide_label(self._ui.state_label, self._ui.state_label_layout, Qt.ElideRight)
@@ -419,7 +420,19 @@ class Tab(object):
             # not in a worker process named GUI
             raise Exception('You cannot call a worker process "GUI". Why would you want to? Your worker process cannot interact with the BLACS GUI directly, so you are just trying to confuse yourself!')
         
-        worker = WorkerClass()
+        if self.worker_host == "":
+            worker = WorkerClass()
+        else:
+            worker = RemoteWorker(WorkerClass, self.worker_host)
+
+        try:
+            to_worker, from_worker = worker.start(name, self.device_name, workerargs)
+        except zprocess.TimeoutError:
+                now = time.strftime('%a %b %d, %H:%M:%S ',time.localtime())
+                self.error_message += ('Exception in remote worker - %s:<br />' % now +
+                                               '<FONT COLOR=\'#ff0000\'>%s</FONT><br />'%"Server not found".replace(' ','&nbsp;').replace('\n','<br />'))
+                self.state = 'fatal error'
+                return
         to_worker, from_worker = worker.start(name, self.device_name, workerargs)
         self.workers[name] = (worker,to_worker,from_worker)
         self.event_queue.put(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,False,[Tab._initialise_worker,[(name,),{}]],prepend=True)
@@ -664,6 +677,10 @@ class Tab(object):
                             except:
                                 self.error_message += 'Attempt to pass unserialisable object to child process:'
                                 raise
+                            # Catch not connected Remote Worker error
+                            if not worker_process in workers:
+                                break_main_loop = True
+                                break
                             # Send the command to the worker
                             to_worker = workers[worker_process][1]
                             from_worker = workers[worker_process][2]
@@ -729,7 +746,46 @@ class Tab(object):
             # do this in the main thread
             inmain(self._ui.button_close.setEnabled,False)
         logger.info('Exiting')
-        
+
+import socket
+class RemoteWorker():
+    def init(self):
+        # To be overridden by subclasses
+        pass
+
+    def __init__(self, WorkerClass, remote_address):
+        self.WorkerClass = WorkerClass
+        self.remote_address = remote_address
+        self.local_address = socket.gethostbyname(socket.gethostname())
+        pass
+
+    def start(self, name, device_name, workerargs):
+        self.name = name
+        self.device_name = device_name
+
+        from_worker = zprocess.context.socket(zprocess.zmq.PULL)
+        port_from_worker = from_worker.bind_to_random_port('tcp://*')  # try address = *
+
+        # Initialize Worker
+        data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address}
+        to_worker_port, from_worker_port = zprocess.zmq_get(5789, self.remote_address, data, timeout=2)
+
+        from_worker_back = zprocess.context.socket(zprocess.zmq.PUSH)
+        from_worker_back.connect('tcp://{}:{}'.format(self.remote_address, from_worker_port))
+        self.from_worker = zprocess.ReadQueue(from_worker, from_worker_back)
+
+        to_worker = zprocess.context.socket(zprocess.zmq.PUSH)
+        to_worker.connect('tcp://{}:{}'.format(self.remote_address, to_worker_port))
+        self.to_worker = zprocess.WriteQueue(to_worker)
+
+        return self.to_worker, self.from_worker
+
+    def terminate(self):
+        data = {'action': 'terminate', 'name': self.name, 'device_name': self.device_name}
+        try:
+            return zprocess.zmq_get(5789, self.remote_address, data, timeout=1)
+        except zprocess.TimeoutError:
+            pass
         
 class Worker(Process):
     def init(self):
