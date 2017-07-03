@@ -38,7 +38,7 @@ class ConnectionTable(object):
                     for row in self.table:
                         if row[3] == "None":
                             row = Row(row)
-                            self.toplevel_children[row[0]] = Connection(row[0],row[1],None,row[3],row[4],row[5],row[6],row[7],self.table)
+                            self.toplevel_children[row[0]] = Connection(row[0], row[1], None, row[3], row[4], row[5], row[6], row[7], row[8], self.table)
                     try:
                         self.master_pseudoclock = table.attrs['master_pseudoclock']
                     except:
@@ -162,7 +162,7 @@ class Row(object):
         #     starts from 0)
         # The value indicates the default value to be used if the column
         #     does not exist
-        self.defaults = {4:"None", 5:"None", 6:"", 7:"{}"}
+        self.defaults = {4: "None", 5: "None", 6: "", 7: "{}", 8: "localhost"}
     def __getitem__(self, index):
         if index >= len(self.row):
             return self.defaults[index]
@@ -172,13 +172,14 @@ class Row(object):
     
 class Connection(object):
     
-    def __init__(self, name, device_class, parent, parent_port, unit_conversion_class, unit_conversion_params, BLACS_connection, properties, table):
+    def __init__(self, name, device_class, parent, parent_port, unit_conversion_class, unit_conversion_params, BLACS_connection, properties, worker_host, table):
         self.child_list = {}
         self.name = name
         self.device_class = device_class
         self.parent_port = parent_port
         self.parent = parent
         self.unit_conversion_class = unit_conversion_class
+        self.worker_host = worker_host
         
         # DEPRECATED: backwards compatibility for old way of storing unit_conversion_params in connection table
         if unit_conversion_params.startswith(labscript_utils.properties.JSON_IDENTIFIER):
@@ -198,7 +199,7 @@ class Connection(object):
         for row in table:
             if row[2] == self.name:
                 row = Row(row)
-                self.child_list[row[0]] = Connection(row[0],row[1],self,row[3],row[4],row[5],row[6],row[7],table)
+                self.child_list[row[0]] = Connection(row[0], row[1], self, row[3], row[4], row[5], row[6], row[7], row[8], table)
         
     @property
     def unit_conversion_params(self):
