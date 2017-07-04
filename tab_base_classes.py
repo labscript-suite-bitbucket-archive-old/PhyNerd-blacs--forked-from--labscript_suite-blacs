@@ -257,7 +257,11 @@ class Tab(object):
         self._changed_layout = self._ui.changed_layout
         self._changed_widget.hide()        
         self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
-        self.worker_host = self.settings['connection_table'].find_by_name(self.device_name).worker_host
+        connection_table_properties = self.settings['connection_table'].find_by_name(self.device_name).properties
+        if "worker_host" in connection_table_properties:
+            self.worker_host = connection_table_properties["worker_host"]
+        else:
+            self.worker_host = ""
         self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
         elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
         elide_label(self._ui.state_label, self._ui.state_label_layout, Qt.ElideRight)
