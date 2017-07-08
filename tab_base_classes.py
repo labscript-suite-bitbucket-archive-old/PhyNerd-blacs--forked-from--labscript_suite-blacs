@@ -759,7 +759,12 @@ class RemoteWorker():
 
     def __init__(self, WorkerClass, remote_address):
         self.WorkerClass = WorkerClass
-        self.remote_address = remote_address
+        remote_address = remote_address.split(":")
+        self.remote_address = remote_address[0]
+        if len(remote_address)>0:
+	        self.remote_port = int(remote_address[1])
+        else:
+                self.remote_port = 5789
         self.local_address = socket.gethostbyname(socket.gethostname())
         pass
 
@@ -772,7 +777,7 @@ class RemoteWorker():
 
         # Initialize Worker
         data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address}
-        to_worker_port, from_worker_port = zprocess.zmq_get(5789, self.remote_address, data, timeout=2)
+        to_worker_port, from_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=2)
 
         from_worker_back = zprocess.context.socket(zprocess.zmq.PUSH)
         from_worker_back.connect('tcp://{}:{}'.format(self.remote_address, from_worker_port))

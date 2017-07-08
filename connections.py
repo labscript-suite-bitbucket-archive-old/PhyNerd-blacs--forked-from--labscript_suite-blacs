@@ -279,4 +279,3 @@ class Connection(object):
                 if result is not None:
                     return result
         return None    
-
