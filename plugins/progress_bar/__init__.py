@@ -15,7 +15,7 @@ import os
 import labscript_utils.h5_lock
 import h5py
 from qtutils import UiLoader
-
+from qtutils import inmain_decorator
 
 class Plugin(object):
     def __init__(self, initial_settings):
@@ -24,6 +24,7 @@ class Plugin(object):
         self.BLACS = None
         self.ui = None
         self.sequences = {}
+        self.initial_max = 0
 
     def get_menu_class(self):
         return None
@@ -43,16 +44,18 @@ class Plugin(object):
     def set_notification_instances(self, notifications):
         self.notifications = notifications
 
+    @inmain_decorator(True)
     def plugin_setup_complete(self, BLACS):
         self.BLACS = BLACS
         self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'progressbar.ui'))
         self.BLACS['ui'].queue_status_verticalLayout.addWidget(self.ui)
 
         # Set the progress bar's maximum to the current amout of loaded shots
-        self.initial_value = self.BLACS['experiment_queue']._model.rowCount() - 1
-        self.ui.currentProgressBar.setMaximum(self.initial_value)
-        self.ui.currentProgressBar.setValue(0)
+        self.initial_max = self.BLACS['experiment_queue']._model.rowCount()
+        self.ui.totalProgressBar.setMaximum(self.initial_max)
+        self.ui.totalProgressBar.setValue(0)
 
+    @inmain_decorator(True)
     def on_shot_complete(self, h5_filepath):
         try:
             with h5py.File(h5_filepath) as h5_file:
@@ -62,23 +65,25 @@ class Plugin(object):
         except Exception:
             return
 
-        # all shots of this sequence have finished remove sequence from maximum calculation
-        if run_number == n_runs - 1:
-            try:
-                del self.sequences[sequence_id]
-            except KeyError:
-                pass
-
-        # update progressbar
-        current_value = self.ui.currentProgressBar.value()
-        if current_value + 1 <= self.ui.currentProgressBar.maximum():
-            self.ui.currentProgressBar.setValue(current_value + 1)
+        # update progressbars
+        new_value = self.ui.totalProgressBar.value() + 1
+        if new_value < self.ui.totalProgressBar.maximum():
+            self.ui.totalProgressBar.setValue(new_value)
         else:
             # reset progressbar to 0 after all shots have run
+            self.ui.totalProgressBar.setValue(0)
+            self.ui.totalProgressBar.setMaximum(0)
+            self.initial_max = 0
+            self.sequences = {}
+
+        if run_number < n_runs - 1:
+            self.ui.currentProgressBar.setValue(run_number + 1)
+            self.ui.currentProgressBar.setMaximum(n_runs)
+        else:
             self.ui.currentProgressBar.setValue(0)
             self.ui.currentProgressBar.setMaximum(0)
-            self.initial_value = 0
 
+    @inmain_decorator(True)
     def on_process_request(self, h5_filepath):
         try:
             with h5py.File(h5_filepath) as h5_file:
@@ -88,8 +93,11 @@ class Plugin(object):
         except Exception:
             pass
 
+        if self.ui.currentProgressBar.maximum() == 0:
+            self.ui.currentProgressBar.setMaximum(n_runs-1)
+
         # calculate new maximum
-        self.ui.currentProgressBar.setMaximum(sum(self.sequences.values()) - len(self.sequences.values()) + self.initial_value)
+        self.ui.totalProgressBar.setMaximum(sum(self.sequences.values()) + self.initial_max)
 
     def get_save_data(self):
         return {}
