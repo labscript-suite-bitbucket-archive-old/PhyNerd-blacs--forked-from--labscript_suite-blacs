@@ -355,6 +355,16 @@ class QueueManager(object):
             self._model.insertRow(0,QStandardItem(h5file))
     
     def process_request(self,h5_filepath):
+        if(hasattr(self.BLACS, 'plugins')):
+            # Plugin callbacks
+            for plugin in self.BLACS.plugins.values():
+                callbacks = plugin.get_callbacks()
+                if isinstance(callbacks, dict) and 'on_process_request' in callbacks:
+                    try:
+                        callbacks['on_process_request'](h5_filepath)
+                    except Exception:
+                        logger.exception("Plugin callback raised an exception")
+
         # check connection table
         try:
             new_conn = ConnectionTable(h5_filepath)
