@@ -51,9 +51,9 @@ class Plugin(object):
         self.BLACS['ui'].queue_status_verticalLayout.addWidget(self.ui)
 
         # Set the progress bar's maximum to the current amout of loaded shots
-        self.initial_max = self.BLACS['experiment_queue']._model.rowCount()
-        self.ui.totalProgressBar.setMaximum(self.initial_max)
-        self.ui.totalProgressBar.setValue(0)
+        # self.initial_max = self.BLACS['experiment_queue']._model.rowCount()
+        # self.ui.totalProgressBar.setMaximum(self.initial_max)
+        # self.ui.totalProgressBar.setValue(0)
 
     @inmain_decorator(True)
     def on_shot_complete(self, h5_filepath):
@@ -66,15 +66,16 @@ class Plugin(object):
             return
 
         # update progressbars
-        new_value = self.ui.totalProgressBar.value() + 1
-        if new_value < self.ui.totalProgressBar.maximum():
-            self.ui.totalProgressBar.setValue(new_value)
-        else:
-            # reset progressbar to 0 after all shots have run
-            self.ui.totalProgressBar.setValue(0)
-            self.ui.totalProgressBar.setMaximum(0)
-            self.initial_max = 0
-            self.sequences = {}
+
+        # new_value = self.ui.totalProgressBar.value() + 1
+        # if new_value < self.ui.totalProgressBar.maximum():
+        #     self.ui.totalProgressBar.setValue(new_value)
+        # else:
+        #     # reset progressbar to 0 after all shots have run
+        #     self.ui.totalProgressBar.setValue(0)
+        #     self.ui.totalProgressBar.setMaximum(0)
+        #     self.initial_max = 0
+        #     self.sequences = {}
 
         if run_number < n_runs - 1:
             self.ui.currentProgressBar.setValue(run_number + 1)
@@ -97,7 +98,7 @@ class Plugin(object):
             self.ui.currentProgressBar.setMaximum(n_runs-1)
 
         # calculate new maximum
-        self.ui.totalProgressBar.setMaximum(sum(self.sequences.values()) + self.initial_max)
+        # self.ui.totalProgressBar.setMaximum(sum(self.sequences.values()) + self.initial_max)
 
     def get_save_data(self):
         return {}

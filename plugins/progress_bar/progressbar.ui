@@ -33,6 +33,7 @@
      </property>
     </widget>
    </item>
+<!--
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
@@ -75,6 +76,7 @@
       </item>
      </layout>
     </item>
+-->
    <item>
      <layout class="QHBoxLayout" name="horizontalLayout1">
       <item>
