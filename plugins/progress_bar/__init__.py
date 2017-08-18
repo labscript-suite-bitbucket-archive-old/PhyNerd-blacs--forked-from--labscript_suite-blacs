@@ -16,6 +16,7 @@ import labscript_utils.h5_lock
 import h5py
 from qtutils import UiLoader
 from qtutils import inmain_decorator
+import datetime
 
 class Plugin(object):
     def __init__(self, initial_settings):
@@ -23,8 +24,9 @@ class Plugin(object):
         self.notifications = {}
         self.BLACS = None
         self.ui = None
-        self.sequences = {}
+        self.shots = {}
         self.initial_max = 0
+        self.shot_model = None
 
     def get_menu_class(self):
         return None
@@ -36,7 +38,7 @@ class Plugin(object):
         return []
 
     def get_callbacks(self):
-        return {'shot_complete': self.on_shot_complete, 'on_process_request': self.on_process_request}
+        return {'shot_complete': self.on_shot_complete}
 
     def set_menu_instance(self, menu):
         self.menu = menu
@@ -44,61 +46,57 @@ class Plugin(object):
     def set_notification_instances(self, notifications):
         self.notifications = notifications
 
-    @inmain_decorator(True)
     def plugin_setup_complete(self, BLACS):
         self.BLACS = BLACS
+        self.shot_model = self.BLACS['experiment_queue']._model
+
         self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'progressbar.ui'))
         self.BLACS['ui'].queue_status_verticalLayout.addWidget(self.ui)
 
-        # Set the progress bar's maximum to the current amout of loaded shots
-        # self.initial_max = self.BLACS['experiment_queue']._model.rowCount()
-        # self.ui.totalProgressBar.setMaximum(self.initial_max)
-        # self.ui.totalProgressBar.setValue(0)
+        rowcount = self.shot_model.rowCount()
+        if rowcount>0:
+            self.on_new_shot(None, 0, rowcount-1)
 
-    @inmain_decorator(True)
+        self.shot_model.rowsInserted.connect(self.on_new_shot)
+
     def on_shot_complete(self, h5_filepath):
         try:
             with h5py.File(h5_filepath) as h5_file:
                 n_runs = int(h5_file.attrs['n_runs'])
                 run_number = int(h5_file.attrs['run number'])
-                sequence_id = h5_file.attrs['sequence_id']
         except Exception:
             return
 
-        # update progressbars
+        del self.shots[h5_filepath]
 
-        # new_value = self.ui.totalProgressBar.value() + 1
-        # if new_value < self.ui.totalProgressBar.maximum():
-        #     self.ui.totalProgressBar.setValue(new_value)
-        # else:
-        #     # reset progressbar to 0 after all shots have run
-        #     self.ui.totalProgressBar.setValue(0)
-        #     self.ui.totalProgressBar.setMaximum(0)
-        #     self.initial_max = 0
-        #     self.sequences = {}
+        self.update_shots_left(self.shots)
+        self.update_progress(run_number + 1, n_runs)
 
-        if run_number < n_runs - 1:
-            self.ui.currentProgressBar.setValue(run_number + 1)
-            self.ui.currentProgressBar.setMaximum(n_runs)
-        else:
-            self.ui.currentProgressBar.setValue(0)
-            self.ui.currentProgressBar.setMaximum(0)
-
-    @inmain_decorator(True)
-    def on_process_request(self, h5_filepath):
-        try:
+    def on_new_shot(self, parent, start, end):
+        for i in range(start, end+1):
+            h5_filepath = self.shot_model.item(i).text()
             with h5py.File(h5_filepath) as h5_file:
-                n_runs = int(h5_file.attrs['n_runs'])
-                sequence_id = h5_file.attrs['sequence_id']
-                self.sequences[sequence_id] = n_runs
-        except Exception:
-            pass
+                master_pseudoclock = h5_file['connection table'].attrs['master_pseudoclock']
+                try:
+                    stoptime = h5_file['devices/%s' % master_pseudoclock].attrs['stop_time']
+                except Exception:
+                    stoptime = 0
+            self.shots[self.shot_model.item(i).text()] = stoptime
 
-        if self.ui.currentProgressBar.maximum() == 0:
-            self.ui.currentProgressBar.setMaximum(n_runs-1)
+        self.update_shots_left(self.shots)
 
-        # calculate new maximum
-        # self.ui.totalProgressBar.setMaximum(sum(self.sequences.values()) + self.initial_max)
+    @inmain_decorator(False)
+    def update_shots_left(self, shots):
+        n_shots = len(shots)
+        total_seconds = sum(shots.values()) + n_shots * 0.200
+        hours, remainder = divmod(total_seconds,3600)
+        minutes, seconds = divmod(remainder,60)
+        self.ui.shotsLeftLabel.setText("{} ({:.0f} hrs {:.0f} min {:.0f} secs)".format(n_shots, hours, minutes, seconds))
+
+    @inmain_decorator(False)
+    def update_progress(self, value, maximum):
+        self.ui.currentProgressBar.setValue(value)
+        self.ui.currentProgressBar.setMaximum(maximum)
 
     def get_save_data(self):
         return {}
