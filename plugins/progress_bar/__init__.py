@@ -16,7 +16,6 @@ import labscript_utils.h5_lock
 import h5py
 from qtutils import UiLoader
 from qtutils import inmain_decorator
-import datetime
 
 class Plugin(object):
     def __init__(self, initial_settings):
@@ -55,9 +54,10 @@ class Plugin(object):
 
         rowcount = self.shot_model.rowCount()
         if rowcount>0:
-            self.on_new_shot(None, 0, rowcount-1)
+            self.on_new_shots(None, 0, rowcount-1)
 
-        self.shot_model.rowsInserted.connect(self.on_new_shot)
+        self.shot_model.rowsInserted.connect(self.on_new_shots)
+        self.shot_model.rowsAboutToBeRemoved.connect(self.on_removed_shots)
 
     def on_shot_complete(self, h5_filepath):
         try:
@@ -67,12 +67,10 @@ class Plugin(object):
         except Exception:
             return
 
-        del self.shots[h5_filepath]
-
         self.update_shots_left(self.shots)
         self.update_progress(run_number + 1, n_runs)
 
-    def on_new_shot(self, parent, start, end):
+    def on_new_shots(self, parent, start, end):
         for i in range(start, end+1):
             h5_filepath = self.shot_model.item(i).text()
             with h5py.File(h5_filepath) as h5_file:
@@ -82,6 +80,14 @@ class Plugin(object):
                 except Exception:
                     stoptime = 0
             self.shots[self.shot_model.item(i).text()] = stoptime
+
+        self.update_shots_left(self.shots)
+
+    def on_removed_shots(self, parent, start, end):
+        for i in range(start, end+1):
+            h5_filepath = self.shot_model.item(i).text()
+            if h5_filepath in self.shots.keys():
+                del self.shots[h5_filepath]
 
         self.update_shots_left(self.shots)
 
