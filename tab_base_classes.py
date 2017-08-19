@@ -252,8 +252,11 @@ class Tab(object):
         self._changed_widget = self._ui.changed_widget
         self._changed_layout = self._ui.changed_layout
         self._changed_widget.hide()        
-        self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
-        self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
+        if self.settings['connection_table'] is not None:
+            self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
+            self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
+        else:
+            self._ui.device_name.setText("<b>%s</b> [Plugin]"%(str(self.device_name)))
         elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
         elide_label(self._ui.state_label, self._ui.state_label_layout, Qt.ElideRight)
         # connect signals
