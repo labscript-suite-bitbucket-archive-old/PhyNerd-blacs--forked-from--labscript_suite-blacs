@@ -296,12 +296,11 @@ class BLACS(object):
         for module_name, plugin in self.plugins.items():
             try:
                 if hasattr(plugin, 'get_BLACS_tab'):
-                    TabClass = plugin.get_BLACS_tab()
                     self.settings_dict.setdefault(module_name,{"device_name":module_name})
                     self.settings_dict[module_name]["connection_table"] = None
                     self.settings_dict[module_name]["front_panel_settings"] = settings[module_name] if module_name in settings else {}
                     self.settings_dict[module_name]["saved_data"] = tab_data[module_name]['data'] if module_name in tab_data else {}
-                    self.tablist[module_name] = TabClass(self.tab_widgets[0],self.settings_dict[module_name])
+                    self.tablist[module_name] = plugin.get_BLACS_tab(self.tab_widgets[0],self.settings_dict[module_name])
             except Exception:
                 logger.exception('Could not instantiate tab for plugin \'%s\'. Skipping')
 

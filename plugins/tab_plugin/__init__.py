@@ -16,7 +16,7 @@ import labscript_utils.h5_lock
 import h5py
 from qtutils import UiLoader
 from qtutils import inmain_decorator
-from blacs.tab_base_classes import Tab, Worker, define_state
+from blacs.tab_base_classes import PluginTab, Worker, define_state
 import qtutils.icons
 from qtutils.qt.QtWidgets import *
 
@@ -25,6 +25,7 @@ class Plugin(object):
         self.menu = None
         self.notifications = {}
         self.BLACS = None
+        self.tab = None
 
     def get_menu_class(self):
         return None
@@ -48,8 +49,10 @@ class Plugin(object):
         self.BLACS = BLACS
         pass
 
-    def get_BLACS_tab(self):
-        return PluginTab
+    def get_BLACS_tab(self, notebook, settings, restart=False):
+        self.tab = TestTab(notebook, settings, restart)
+        self.tab.create_worker('My worker',PluginWorker,{'x':7})
+        return self.tab
 
     def get_save_data(self):
         return {}
@@ -66,24 +69,7 @@ class PluginWorker(Worker):
         raise Exception('error!')
 
 
-
-class PluginTab(Tab):
-    ICON_OK = ':/qtutils/fugue/block'
-    ICON_BUSY = ':/qtutils/fugue/clock-frame'
-    ICON_ERROR = ':/qtutils/fugue/bug'
-    ICON_FATAL_ERROR = ':/qtutils/fugue/bug--exclamation'
-
-    def __init__(self,notebook,settings,restart=False):
-        Tab.__init__(self,notebook,settings,restart)
-
-        self.create_worker('My worker',PluginWorker,{'x':7})
-
-        self.destroy_complete = False
-
-        # Call the initialise GUI function
-        self.initialise_GUI()
-        self.restore_save_data(self.settings['saved_data'] if 'saved_data' in self.settings else {})
-
+class TestTab(PluginTab):
     def initialise_GUI(self):
         self.layout = self.get_tab_layout()
 
@@ -95,26 +81,3 @@ class PluginTab(Tab):
     @define_state(1, True)
     def test_abc(self, *args, **kwargs):
         yield(self.queue_work('My worker', 'foo', 5, 6, 7))
-
-    # This method should be overridden in your device class if you want to save any data not
-    # stored in an AO, DO or DDS object
-    # This method should return a dictionary, and this dictionary will be passed to the restore_save_data()
-    # method when the tab is initialised
-    def get_save_data(self):
-        return {}
-
-    # This method should be overridden in your device class if you want to restore data
-    # (saved by get_save_data()) when teh tab is initialised.
-    # You will be passed a dictionary of the form specified by your get_save_data() method
-    #
-    # Note: You must handle the case where the data dictionary is empty (or one or more keys are missing)
-    #       This case will occur the first time BLACS is started on a PC, or if the BLACS datastore is destroyed
-    def restore_save_data(self,data):
-        return
-
-    def update_from_settings(self,settings):
-        self.restore_save_data(settings['saved_data'])
-
-    def destroy(self):
-        self.close_tab()
-        self.destroy_complete = True

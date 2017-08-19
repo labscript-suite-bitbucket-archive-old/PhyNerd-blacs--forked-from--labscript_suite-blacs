@@ -795,10 +795,50 @@ class Worker(Process):
                 # Report to the parent whether work was successful or not,
                 # and what the results were:
                 self.to_parent.put((success,message,results))
- 
- 
- 
-     
+
+
+class PluginTab(Tab):
+    ICON_OK = ':/qtutils/fugue/block'
+    ICON_BUSY = ':/qtutils/fugue/clock-frame'
+    ICON_ERROR = ':/qtutils/fugue/bug'
+    ICON_FATAL_ERROR = ':/qtutils/fugue/bug--exclamation'
+
+    def __init__(self,notebook,settings,restart=False):
+        Tab.__init__(self,notebook,settings,restart)
+
+        self.destroy_complete = False
+
+        # Call the initialise GUI function
+        self.initialise_GUI()
+        self.restore_save_data(self.settings['saved_data'] if 'saved_data' in self.settings else {})
+
+    def initialise_GUI(self):
+        return
+
+    # This method should be overridden in your device class if you want to save any data not
+    # stored in an AO, DO or DDS object
+    # This method should return a dictionary, and this dictionary will be passed to the restore_save_data()
+    # method when the tab is initialised
+    def get_save_data(self):
+        return {}
+
+    # This method should be overridden in your device class if you want to restore data
+    # (saved by get_save_data()) when teh tab is initialised.
+    # You will be passed a dictionary of the form specified by your get_save_data() method
+    #
+    # Note: You must handle the case where the data dictionary is empty (or one or more keys are missing)
+    #       This case will occur the first time BLACS is started on a PC, or if the BLACS datastore is destroyed
+    def restore_save_data(self,data):
+        return
+
+    def update_from_settings(self,settings):
+        self.restore_save_data(settings['saved_data'])
+
+    def destroy(self):
+        self.close_tab()
+        self.destroy_complete = True
+
+
 # Example code! Two classes are defined below, which are subclasses
 # of the ones defined above.  They show how to make a Tab class,
 # and a Worker class, and get the Tab to request work to be done by
