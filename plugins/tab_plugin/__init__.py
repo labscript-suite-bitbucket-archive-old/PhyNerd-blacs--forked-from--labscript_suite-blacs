@@ -16,7 +16,9 @@ import labscript_utils.h5_lock
 import h5py
 from qtutils import UiLoader
 from qtutils import inmain_decorator
-from blacs.tab_base_classes import Tab
+from blacs.tab_base_classes import Tab, Worker, define_state
+import qtutils.icons
+from qtutils.qt.QtWidgets import *
 
 class Plugin(object):
     def __init__(self, initial_settings):
@@ -46,10 +48,8 @@ class Plugin(object):
         self.BLACS = BLACS
         pass
 
-    def get_Tab(self, notebook):
-        name = 'XYZ'
-        tab = PluginTab(notebook, settings = {'device_name': name, 'front_panel_settings':{}, 'saved_data':{}})
-        return tab, name
+    def get_BLACS_tab(self):
+        return PluginTab
 
     def get_save_data(self):
         return {}
@@ -58,22 +58,25 @@ class Plugin(object):
         pass
 
 
+class PluginWorker(Worker):
+    def init(self):
+        return
+
+    def foo(self,*args,**kwargs):
+        raise Exception('error!')
+
+
 
 class PluginTab(Tab):
+    ICON_OK = ':/qtutils/fugue/block'
+    ICON_BUSY = ':/qtutils/fugue/clock-frame'
+    ICON_ERROR = ':/qtutils/fugue/bug'
+    ICON_FATAL_ERROR = ':/qtutils/fugue/bug--exclamation'
+
     def __init__(self,notebook,settings,restart=False):
-        class FakeConnection(object):
-            def __init__(self):
-                self.BLACS_connection = "Plugin"
-        class FakeConnectionTable(object):
-            def __init__(self):
-                pass
-
-            def find_by_name(self, device_name):
-                return FakeConnection()
-
-        settings['connection_table'] = FakeConnectionTable()
-
         Tab.__init__(self,notebook,settings,restart)
+
+        self.create_worker('My worker',PluginWorker,{'x':7})
 
         self.destroy_complete = False
 
@@ -82,8 +85,16 @@ class PluginTab(Tab):
         self.restore_save_data(self.settings['saved_data'] if 'saved_data' in self.settings else {})
 
     def initialise_GUI(self):
-        # Override this function
-        pass
+        self.layout = self.get_tab_layout()
+
+        foobutton = QPushButton('test')
+        foobutton.clicked.connect(self.test_abc)
+
+        self.layout.addWidget(foobutton)
+
+    @define_state(1, True)
+    def test_abc(self, *args, **kwargs):
+        yield(self.queue_work('My worker', 'foo', 5, 6, 7))
 
     # This method should be overridden in your device class if you want to save any data not
     # stored in an AO, DO or DDS object
@@ -103,9 +114,6 @@ class PluginTab(Tab):
 
     def update_from_settings(self,settings):
         self.restore_save_data(settings['saved_data'])
-
-    def get_front_panel_values(self):
-        return {}
 
     def destroy(self):
         self.close_tab()
