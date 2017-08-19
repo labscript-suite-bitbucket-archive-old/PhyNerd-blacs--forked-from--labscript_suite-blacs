@@ -514,7 +514,7 @@ class Tab(object):
             # (albeit doing nothing) that we don't need:
             if self._mainloop_thread.is_alive():
                 worker_data[2].put((False,'quit',None))
-                self.event_queue.put(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,False,['_quit',None],prepend=True)
+        self.event_queue.put(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,False,['_quit',None],prepend=True)
         self.notebook = self._ui.parentWidget().parentWidget()
         currentpage = None
         if self.notebook:
