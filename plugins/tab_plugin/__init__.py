@@ -47,11 +47,9 @@ class Plugin(object):
 
     def plugin_setup_complete(self, BLACS):
         self.BLACS = BLACS
-        pass
 
     def get_BLACS_tab(self, notebook, settings, restart=False):
         self.tab = TestTab(notebook, settings, restart)
-        self.tab.create_worker('My worker',PluginWorker,{'x':7})
         return self.tab
 
     def get_save_data(self):
@@ -61,23 +59,14 @@ class Plugin(object):
         pass
 
 
-class PluginWorker(Worker):
-    def init(self):
-        return
-
-    def foo(self,*args,**kwargs):
-        raise Exception('error!')
-
-
 class TestTab(PluginTab):
     def initialise_GUI(self):
         self.layout = self.get_tab_layout()
 
-        foobutton = QPushButton('test')
-        foobutton.clicked.connect(self.test_abc)
+        self.foobutton = QPushButton('test')
+        self.foobutton.clicked.connect(self.test_abc)
 
-        self.layout.addWidget(foobutton)
+        self.layout.addWidget(self.foobutton)
 
-    @define_state(1, True)
-    def test_abc(self, *args, **kwargs):
-        yield(self.queue_work('My worker', 'foo', 5, 6, 7))
+    def test_abc(self, *args):
+        print('Error')
