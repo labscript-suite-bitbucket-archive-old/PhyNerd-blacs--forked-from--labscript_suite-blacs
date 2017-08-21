@@ -58,6 +58,7 @@ class Plugin(object):
 
         self.shot_model.rowsInserted.connect(self.on_new_shots)
         self.shot_model.rowsAboutToBeRemoved.connect(self.on_removed_shots)
+        self.shot_model.modelReset.connect(self.on_removed_all_shots)
 
     def on_shot_complete(self, h5_filepath):
         try:
@@ -67,7 +68,7 @@ class Plugin(object):
         except Exception:
             return
 
-        self.update_shots_left(self.shots)
+        self.update_shots_left()
         self.update_progress(run_number + 1, n_runs)
 
     def on_new_shots(self, parent, start, end):
@@ -81,7 +82,7 @@ class Plugin(object):
                     stoptime = 0
             self.shots[self.shot_model.item(i).text()] = stoptime
 
-        self.update_shots_left(self.shots)
+        self.update_shots_left()
 
     def on_removed_shots(self, parent, start, end):
         for i in range(start, end+1):
@@ -89,10 +90,15 @@ class Plugin(object):
             if h5_filepath in self.shots.keys():
                 del self.shots[h5_filepath]
 
-        self.update_shots_left(self.shots)
+        self.update_shots_left()
+
+    def on_removed_all_shots(self):
+        self.shots = {}
+        self.update_shots_left()
 
     @inmain_decorator(False)
-    def update_shots_left(self, shots):
+    def update_shots_left(self):
+        shots = self.shots
         n_shots = len(shots)
         total_seconds = sum(shots.values()) + n_shots * 0.200
         hours, remainder = divmod(total_seconds,3600)
