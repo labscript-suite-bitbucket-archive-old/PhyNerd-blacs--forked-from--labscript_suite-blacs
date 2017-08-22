@@ -251,12 +251,9 @@ class Tab(object):
         self._device_widget = self._ui.device_controls
         self._changed_widget = self._ui.changed_widget
         self._changed_layout = self._ui.changed_layout
-        self._changed_widget.hide()        
-        if self.settings['connection_table'] is not None:
-            self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
-            self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
-        else:
-            self._ui.device_name.setText("<b>%s</b> [Plugin]"%(str(self.device_name)))
+        self._changed_widget.hide()
+        self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
+        self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
         elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
         elide_label(self._ui.state_label, self._ui.state_label_layout, Qt.ElideRight)
         # connect signals
@@ -797,20 +794,81 @@ class Worker(Process):
                 self.to_parent.put((success,message,results))
 
 
-class PluginTab(Tab):
-    ICON_OK = ':/qtutils/fugue/block'
-    ICON_BUSY = ':/qtutils/fugue/clock-frame'
-    ICON_ERROR = ':/qtutils/fugue/bug'
-    ICON_FATAL_ERROR = ':/qtutils/fugue/bug--exclamation'
+class PluginTab(object):
+    def __init__(self,notebook,settings):
+        # Store important parameters
+        self.notebook = notebook
+        self.settings = settings
+        self._tab_name = self.settings["tab_name"]
 
-    def __init__(self,notebook,settings,restart=False):
-        Tab.__init__(self,notebook,settings,restart)
+        # Load the UI
+        self._ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'tab_frame.ui'))
+        self._layout = self._ui.device_layout
 
+        self._ui.device_name.setText("<b>%s</b> [Plugin]"%(str(self.tab_name)))
+        elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
+
+        # hide device ui
+        self._ui.button_clear_smart_programming.hide()
+        self._ui.button_restart.hide()
+        self._ui.notresponding.hide()
+        self._ui.state_label.hide()
+        self._ui.changed_widget.hide()
+
+        # Add the tab to the notebook
+        currentpage = self.notebook.addTab(self._ui,self.tab_name)
+
+        self._ui.show()
         self.destroy_complete = False
 
         # Call the initialise GUI function
         self.initialise_GUI()
         self.restore_save_data(self.settings['saved_data'] if 'saved_data' in self.settings else {})
+
+        self._tab_icon_and_colour_timer = QTimer()
+        self._tab_icon_and_colour_timer.timeout.connect(self.set_tab_icon_and_colour)
+        self._tab_icon =  QIcon(':/qtutils/custom/lyse')
+        self._tab_text_colour = 'blue'
+        self._tab_icon_and_colour_timer.start(100)
+
+    @inmain_decorator(True)
+    def set_tab_icon_and_colour(self):
+        """Set the tab icon and the colour of its text to the values of
+        self._tab_icon and self._tab_text_colour respectively"""
+        if self._ui.parentWidget() is None:
+            return
+        self.notebook = self._ui.parentWidget().parentWidget()
+        currentpage = None
+        if self.notebook is not None:
+            #currentpage = self.notebook.get_current_page()
+            currentpage = self.notebook.indexOf(self._ui)
+        if self.notebook is not None and currentpage != -1:
+            icon = QIcon(self._tab_icon)
+            self.notebook.tabBar().setTabIcon(currentpage, icon)
+            self.notebook.tabBar().setTabTextColor(currentpage, QColor(self._tab_text_colour))
+            self._tab_icon_and_colour_timer.stop()
+        elif not self._tab_icon_and_colour_timer.isActive():
+            self._tab_icon_and_colour_timer.start(100)
+
+    @property
+    def tab_name(self):
+        return self._tab_name
+
+    def get_tab_layout(self):
+        return self._layout
+
+    def close_tab(self,*args):
+        self._tab_icon_and_colour_timer.stop()
+        self.notebook = self._ui.parentWidget().parentWidget()
+        currentpage = None
+        if self.notebook:
+            #currentpage = self.notebook.get_current_page()
+            currentpage = self.notebook.indexOf(self._ui)
+            self.notebook.removeTab(currentpage)
+            temp_widget = QWidget()
+            self.notebook.insertTab(currentpage, temp_widget, self.tab_name)
+            self.notebook.setCurrentWidget(temp_widget)
+        return currentpage
 
     def initialise_GUI(self):
         return
