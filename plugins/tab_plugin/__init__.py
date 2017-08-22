@@ -25,7 +25,6 @@ class Plugin(object):
         self.menu = None
         self.notifications = {}
         self.BLACS = None
-        self.tab = None
 
     def get_menu_class(self):
         return None
@@ -48,9 +47,8 @@ class Plugin(object):
     def plugin_setup_complete(self, BLACS):
         self.BLACS = BLACS
 
-    def get_BLACS_tab(self, notebook, settings, restart=False):
-        self.tab = TestTab(notebook, settings, restart)
-        return self.tab
+    def get_tab_classes(self):
+        return {'hallo': TestTab}
 
     def get_save_data(self):
         return {}
@@ -63,10 +61,16 @@ class TestTab(PluginTab):
     def initialise_GUI(self):
         self.layout = self.get_tab_layout()
 
-        self.foobutton = QPushButton('test')
+        self.foobutton = QPushButton('Error')
         self.foobutton.clicked.connect(self.test_abc)
 
         self.layout.addWidget(self.foobutton)
 
     def test_abc(self, *args):
-        print('Error')
+        raise Exception('test')
+
+    def get_save_data(self):
+        return {}
+
+    def restore_save_data(self,data):
+        return
