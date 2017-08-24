@@ -439,12 +439,11 @@ class AI(object):
         self._hardware_name = hardware_name
         self._device_name = device_name
 
-        self._locked = False
         self._widgets = []
         self._program_device = program_function
 
         # All of these are in base units ALWAYS
-        self._current_value = 0 # value in base units
+        self._current_value = None # value in base units
 
         self._logger = logging.getLogger('BLACS.%s.%s'%(self._device_name,hardware_name))
 
@@ -473,9 +472,6 @@ class AI(object):
         # Update the state of the button
         self.set_value(self._settings['base_value'],program=program)
 
-        # Update the lock state
-        self._update_lock(self._settings['locked'])
-
     def create_widget(self,display_name=None, horizontal_alignment=False, parent=None):
         widget = AnalogInput(self._hardware_name,self._connection_name,display_name, horizontal_alignment, parent)
         self.add_widget(widget)
@@ -487,12 +483,11 @@ class AI(object):
 
         self._widgets.append(widget)
 
-        # make sure the widget knows about this AO.
+        # make sure the widget knows about this AI.
         widget.set_AI(self,notify_old_AI=True,notify_new_AI=False)
 
         # This will update the lock state of ALL widgets, including the one just added!
         self.set_value(self._current_value, False)
-        self._update_lock(self._locked)
 
         return True
 
@@ -524,23 +519,6 @@ class AI(object):
         if program:
             self._logger.debug('program device called')
             self._program_device()
-### END Edit ###
-    def lock(self):
-        self._update_lock(True)
-
-    def unlock(self):
-        self._update_lock(False)
-
-    def _update_lock(self, locked):
-        self._locked = locked
-        self._settings['locked'] = locked
-
-        # Lock all widgets if they are not already locked
-        for widget in self._widgets:
-            if locked:
-                widget.lock(False)
-            else:
-                widget.unlock(False)
 
     @property
     def name(self):
