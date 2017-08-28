@@ -18,6 +18,7 @@ import time
 import zmq, threading
 import numpy as np
 from qtutils import inmain
+from labscript_utils.labconfig import LabConfig
 
 from qtutils.qt.QtCore import *
 from qtutils.qt.QtGui import *
@@ -250,7 +251,9 @@ class DeviceTab(Tab):
             properties.setdefault('parent',None)
             if hardware_name in self._AI:
                 widgets[hardware_name] = self._AI[hardware_name].create_widget(properties['display_name'],properties['horizontal_alignment'],properties['parent'])
-        broker_pub_port = 55217
+
+        exp_config = LabConfig()
+        broker_pub_port = int(exp_config.get('ports', 'BLACS_Broker_Pub'))
 
         context = zmq.Context()
         self.socket = context.socket(zmq.SUB)

@@ -18,6 +18,8 @@ import socket
 import subprocess
 import sys
 import time
+import traceback
+import threading
 
 import signal
 # Quit on ctrl-c
@@ -53,7 +55,7 @@ check_version('labscript_devices', '2.0', '3')
 import zprocess.locking, labscript_utils.h5_lock, h5py
 zprocess.locking.set_client_process_name('BLACS')
 ###
-from zprocess import zmq_get, ZMQServer
+from zprocess import zmq_get, ZMQServer, Process
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive
 
@@ -159,6 +161,28 @@ def set_win_appusermodel(window_id):
     relaunch_command = executable + ' ' + os.path.abspath(__file__.replace('.pyc', '.py'))
     relaunch_display_name = app_descriptions['blacs']
     set_appusermodel(window_id, appids['blacs'], icon_path, relaunch_command, relaunch_display_name)
+
+
+class Forwarder(Process):
+    def run(self, pub_port, sub_port):
+        try:
+            context = zmq.Context(1)
+
+            # Socket facing clients
+            frontend = context.socket(zmq.SUB)
+            frontend.bind("tcp://*:{}".format(sub_port))
+            frontend.setsockopt(zmq.SUBSCRIBE, "")
+
+            # Socket facing services
+            backend = context.socket(zmq.PUB)
+            backend.bind("tcp://*:{}".format(pub_port))
+            zmq.device(zmq.FORWARDER, frontend, backend)
+        except Exception:
+            self.to_parent.put(traceback.format_exc())
+        finally:
+            frontend.close()
+            backend.close()
+            context.term()
 
 
 class BLACSWindow(QMainWindow):
@@ -268,6 +292,31 @@ class BLACS(object):
             self.tab_widgets[i] = DragDropTabWidget(self.tab_widget_ids)
             self.tab_widgets[i].setElideMode(Qt.ElideRight)
             getattr(self.ui,'tab_container_%d'%i).addWidget(self.tab_widgets[i])
+
+        logger.info('Creating Aquisition Broker')
+        broker = Forwarder()
+
+        try:
+            pub_port = int(self.exp_config.get('ports', 'BLACS_Broker_Pub'))
+        except LabConfig.NoOptionError:
+            self.exp_config.set('ports', 'BLACS_Broker_Pub', '50355')
+            pub_port = 50355
+
+        try:
+            sub_port = int(self.exp_config.get('ports', 'BLACS_Broker_Sub'))
+        except LabConfig.NoOptionError:
+            self.exp_config.set('ports', 'BLACS_Broker_Sub', '50354')
+            sub_port = 50354
+
+        to_child, from_child = broker.start(pub_port, sub_port)
+
+        def _check_broker(from_child):
+            exception = format(from_child.get())
+            raise(Exception(exception))
+
+        self.broker_error_thread = threading.Thread(target=_check_broker, args=(from_child,))
+        self.broker_error_thread.daemon = True
+        self.broker_error_thread.start()
 
         logger.info('Instantiating devices')
         for device_name, labscript_device_class_name in self.attached_devices.items():
