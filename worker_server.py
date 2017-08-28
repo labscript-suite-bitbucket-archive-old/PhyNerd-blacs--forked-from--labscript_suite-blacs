@@ -119,10 +119,14 @@ if __name__ == '__main__':
     import sys
     import signal
     import time
+    from labscript_utils.labconfig import LabConfig
 
     # config
     port = 5789
-    prefix_local = 'Z:\\'
+
+    # Get Path to Shareddrive
+    _config = LabConfig(required_params={'paths': ['shared_drive']})
+    prefix_local = _config.get('paths', 'shared_drive')
 
     # Start Worker Server
     print("Starting Worker Server on IP {} Port {} to exit press CTRL + C".format(socket.gethostbyname(socket.gethostname()), port))
