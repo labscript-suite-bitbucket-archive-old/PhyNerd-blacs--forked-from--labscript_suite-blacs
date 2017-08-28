@@ -752,6 +752,7 @@ class Tab(object):
         logger.info('Exiting')
 
 import socket
+from labscript_utils.labconfig import LabConfig
 class RemoteWorker():
     def init(self):
         # To be overridden by subclasses
@@ -764,7 +765,7 @@ class RemoteWorker():
         if len(remote_address)>0:
 	        self.remote_port = int(remote_address[1])
         else:
-                self.remote_port = 5789
+            self.remote_port = 5789
         self.local_address = socket.gethostbyname(socket.gethostname())
         pass
 
@@ -775,9 +776,13 @@ class RemoteWorker():
         from_worker = zprocess.context.socket(zprocess.zmq.PULL)
         port_from_worker = from_worker.bind_to_random_port('tcp://*')  # try address = *
 
+        # Get Path to Shareddrive
+        _config = LabConfig(required_params={'paths':['shared_drive']})
+        shared_drive = _config.get('paths','shared_drive')
+
         # Initialize Worker
-        data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address}
-        to_worker_port, from_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=2)
+        data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address, 'shared_drive': shared_drive}
+        to_worker_port, from_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=1)
 
         from_worker_back = zprocess.context.socket(zprocess.zmq.PUSH)
         from_worker_back.connect('tcp://{}:{}'.format(self.remote_address, from_worker_port))
