@@ -270,7 +270,7 @@ class DeviceTab(Tab):
         while True:
             topic, messagedata = self.socket.recv_multipart()
             ai_names = sorted(list(widgets.keys()))
-            data_arrays = np.split(np.frombuffer(messagedata, dtype=np.float64), len(ai_names))
+            data_arrays = np.split(np.frombuffer(buffer(messagedata), dtype=np.float64), len(ai_names))
             for i, hardware_names in enumerate(ai_names):
                 inmain(lambda: widgets[hardware_names].set_data(data_arrays[i]))
 
