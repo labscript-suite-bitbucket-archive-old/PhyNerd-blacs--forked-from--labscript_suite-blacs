@@ -473,7 +473,7 @@ class AI(object):
         self.set_value(self._settings['base_value'],program=program)
 
     def create_widget(self,display_name=None, horizontal_alignment=False, parent=None):
-        widget = AnalogInput(self._hardware_name,self._connection_name,display_name, horizontal_alignment, parent)
+        widget = AnalogInput(self._device_name, self._hardware_name,self._connection_name,display_name, horizontal_alignment, parent)
         self.add_widget(widget)
         return widget
 
