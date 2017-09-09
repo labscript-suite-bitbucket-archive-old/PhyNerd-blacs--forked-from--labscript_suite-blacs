@@ -244,6 +244,13 @@ class DeviceTab(Tab):
         return widgets
         
     def create_analog_input_widgets(self,channel_properties):
+        exp_config = LabConfig()
+        broker_pub_port = int(exp_config.get('ports', 'BLACS_Broker_Pub'))
+
+        context = zmq.Context()
+        self.socket = context.socket(zmq.SUB)
+        self.socket.connect ("tcp://127.0.0.1:%d" % broker_pub_port)
+
         widgets = {}
         for hardware_name,properties in channel_properties.items():
             properties.setdefault('display_name',None)
@@ -251,14 +258,7 @@ class DeviceTab(Tab):
             properties.setdefault('parent',None)
             if hardware_name in self._AI:
                 widgets[hardware_name] = self._AI[hardware_name].create_widget(properties['display_name'],properties['horizontal_alignment'],properties['parent'])
-
-        exp_config = LabConfig()
-        broker_pub_port = int(exp_config.get('ports', 'BLACS_Broker_Pub'))
-
-        context = zmq.Context()
-        self.socket = context.socket(zmq.SUB)
-        self.socket.connect ("tcp://127.0.0.1:%d" % broker_pub_port)
-        self.socket.setsockopt(zmq.SUBSCRIBE, self.device_name)
+                self.socket.setsockopt(zmq.SUBSCRIBE, "{} {}".format(self.device_name, hardware_name))
 
         self.analog_in_thread = threading.Thread(target=self._analog_read_loop, args=(widgets,))
         self.analog_in_thread.daemon = True
@@ -268,11 +268,11 @@ class DeviceTab(Tab):
 
     def _analog_read_loop(self, widgets):
         while True:
-            topic, messagedata = self.socket.recv_multipart()
-            ai_names = sorted(list(widgets.keys()))
-            data_arrays = np.split(np.frombuffer(buffer(messagedata), dtype=np.float64), len(ai_names))
-            for i, hardware_names in enumerate(ai_names):
-                inmain(lambda: widgets[hardware_names].set_data(data_arrays[i]))
+            devicename_and_channel, data = self.socket.recv_multipart()
+            channel = devicename_and_channel.split(" ", 1)[1]
+            data = np.frombuffer(buffer(data), dtype=np.float64)
+            random_value = np.random.choice(data,1)[0]
+            widgets[channel].set_value(random_value)
 
     def create_dds_widgets(self,channel_properties):
         widgets = {}
