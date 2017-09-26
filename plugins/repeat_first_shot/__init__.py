@@ -55,16 +55,14 @@ class Plugin(object):
     @inmain_decorator(wait_for_return=True)
     def analysis_filter(self, h5_filepath):
         if self.filter:
+            self.filter = False
             if not self.BLACS['ui'].queue_repeat_button.isChecked() and self.ui.checkBox_repeateFirst.isChecked():
                 self.BLACS['experiment_queue'].clean_h5_file(h5_filepath, 'temp.h5')
                 os.remove(h5_filepath)
                 os.rename('temp.h5', h5_filepath)
                 self.BLACS['experiment_queue'].prepend(h5_filepath)
-
-            self.filter = False
-            return True
-        else:
-            return False
+                return True
+        return False
 
     def shot_complete(self, h5_filepath):
         if self.shot_model.rowCount() == 0:
