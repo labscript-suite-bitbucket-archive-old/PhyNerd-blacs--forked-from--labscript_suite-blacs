@@ -52,7 +52,10 @@ class DeviceTab(Tab):
         self._can_check_remote_values = False
         self._changed_radio_buttons = {}
         self.destroy_complete = False
-        
+
+        self.context = None
+        self.socket = None
+
         # Call the initialise GUI function
         self.initialise_GUI() 
         self.restore_save_data(self.settings['saved_data'] if 'saved_data' in self.settings else {})
@@ -247,8 +250,18 @@ class DeviceTab(Tab):
         exp_config = LabConfig()
         broker_pub_port = int(exp_config.get('ports', 'BLACS_Broker_Pub'))
 
-        context = zmq.Context()
-        self.socket = context.socket(zmq.SUB)
+        # close old socket if there is one
+        if self.socket is not None:
+            self.socket.close()
+            self.socke = None
+
+        if self.context is not None:
+            self.context.term()
+            self.context = None
+
+        # create a new subscribe socket to receive analoge values
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.SUB)
         self.socket.connect ("tcp://127.0.0.1:%d" % broker_pub_port)
 
         widgets = {}
@@ -268,11 +281,15 @@ class DeviceTab(Tab):
 
     def _analog_read_loop(self, widgets):
         while True:
-            devicename_and_channel, data = self.socket.recv_multipart()
-            channel = devicename_and_channel.split(" ", 1)[1]
-            data = np.frombuffer(buffer(data), dtype=np.float64)
-            random_value = np.random.choice(data,1)[0]
-            widgets[channel].set_value(random_value)
+            try:
+                devicename_and_channel, data = self.socket.recv_multipart()
+                channel = devicename_and_channel.split(" ", 1)[1]
+                data = np.frombuffer(buffer(data), dtype=np.float64)
+                random_value = np.random.choice(data,1)[0]
+                widgets[channel].set_value(random_value)
+            except Exception:
+                # something went wrong stop thread
+                break
 
     def create_dds_widgets(self,channel_properties):
         widgets = {}
