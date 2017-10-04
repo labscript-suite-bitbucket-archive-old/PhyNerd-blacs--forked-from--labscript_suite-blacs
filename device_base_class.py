@@ -253,7 +253,7 @@ class DeviceTab(Tab):
         # close old socket if there is one
         if self.socket is not None:
             self.socket.close()
-            self.socke = None
+            self.socket = None
 
         if self.context is not None:
             self.context.term()
