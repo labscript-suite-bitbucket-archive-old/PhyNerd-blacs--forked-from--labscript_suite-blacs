@@ -32,3 +32,6 @@ class Forwarder(Process):
             zmq.device(zmq.FORWARDER, frontend, backend)
         except Exception:
             self.to_parent.put(traceback.format_exc())
+
+    def __del__(self):
+        self.terminate()
