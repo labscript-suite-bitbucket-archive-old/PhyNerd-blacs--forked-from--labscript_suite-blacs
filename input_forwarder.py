@@ -10,6 +10,7 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
 
 import traceback
 from zprocess import Process
@@ -24,7 +25,7 @@ class Forwarder(Process):
             # Socket facing clients
             frontend = context.socket(zmq.SUB)
             frontend.bind("tcp://*:{}".format(sub_port))
-            frontend.setsockopt(zmq.SUBSCRIBE, "")
+            frontend.setsockopt(zmq.SUBSCRIBE, "".encode('utf-8'))
 
             # Socket facing services
             backend = context.socket(zmq.PUB)
