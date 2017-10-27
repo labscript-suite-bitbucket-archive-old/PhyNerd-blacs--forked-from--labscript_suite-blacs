@@ -10,6 +10,9 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from labscript_utils import PY2
+if PY2:
+     memoryview = buffer
 
 import logging
 import sys
@@ -271,7 +274,7 @@ class DeviceTab(Tab):
             properties.setdefault('parent',None)
             if hardware_name in self._AI:
                 widgets[hardware_name] = self._AI[hardware_name].create_widget(properties['display_name'],properties['horizontal_alignment'],properties['parent'])
-                self.socket.setsockopt(zmq.SUBSCRIBE, "{} {}".format(self.device_name, hardware_name))
+                self.socket.setsockopt(zmq.SUBSCRIBE, "{} {}".format(self.device_name, hardware_name).encode('utf-8'))
 
         self.analog_in_thread = threading.Thread(target=self._analog_read_loop, args=(widgets,))
         self.analog_in_thread.daemon = True
@@ -283,8 +286,8 @@ class DeviceTab(Tab):
         while True:
             try:
                 devicename_and_channel, data = self.socket.recv_multipart()
-                channel = devicename_and_channel.split(" ", 1)[1]
-                data = np.frombuffer(buffer(data), dtype=np.float64)
+                channel = devicename_and_channel.decode().split(" ", 1)[1]
+                data = np.frombuffer(memoryview(data), dtype=np.float64)
                 random_value = np.random.choice(data,1)[0]
                 widgets[channel].set_value(random_value)
             except Exception:
