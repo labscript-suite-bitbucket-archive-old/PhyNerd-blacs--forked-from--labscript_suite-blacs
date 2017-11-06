@@ -206,6 +206,7 @@ class BLACSWindow(QMainWindow):
 
                 inmain_later(self.blacs.on_save_exit)
 
+            self.blacs.broker.terminate()
             QTimer.singleShot(100,self.close)
 
 class BLACS(object):
