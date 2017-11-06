@@ -437,7 +437,6 @@ class Tab(object):
                                                '<FONT COLOR=\'#ff0000\'>%s</FONT><br />'%"Server not found".replace(' ','&nbsp;').replace('\n','<br />'))
                 self.state = 'fatal error'
                 return
-        to_worker, from_worker = worker.start(name, self.device_name, workerargs)
         self.workers[name] = (worker,to_worker,from_worker)
         self.event_queue.put(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,False,[Tab._initialise_worker,[(name,),{}]],prepend=True)
        
@@ -782,7 +781,7 @@ class RemoteWorker():
 
         # Initialize Worker
         data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address, 'shared_drive': shared_drive}
-        to_worker_port, from_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=1)
+        to_worker_port, from_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=2)
 
         from_worker_back = zprocess.context.socket(zprocess.zmq.PUSH)
         from_worker_back.connect('tcp://{}:{}'.format(self.remote_address, from_worker_port))
