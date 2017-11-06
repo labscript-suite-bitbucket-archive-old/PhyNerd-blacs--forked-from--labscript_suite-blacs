@@ -272,7 +272,7 @@ class BLACS(object):
             getattr(self.ui,'tab_container_%d'%i).addWidget(self.tab_widgets[i])
 
         logger.info('Creating Aquisition Broker')
-        broker = Forwarder()
+        self.broker = Forwarder()
 
         try:
             pub_port = int(self.exp_config.get('ports', 'BLACS_Broker_Pub'))
@@ -286,7 +286,7 @@ class BLACS(object):
             self.exp_config.set('ports', 'BLACS_Broker_Sub', '50354')
             sub_port = 50354
 
-        to_child, from_child = broker.start(pub_port, sub_port)
+        to_child, from_child = self.broker.start(pub_port, sub_port)
 
         def _check_broker(from_child):
             exception = format(from_child.get())
