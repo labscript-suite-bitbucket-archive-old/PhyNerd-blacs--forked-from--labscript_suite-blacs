@@ -1,6 +1,5 @@
-from zprocess import WriteQueue, ReadQueue, context, ZMQServer
-import zmq
 from threading import Thread, Event
+from zprocess import WriteQueue, ReadQueue, context, ZMQServer, zmq
 import os
 
 
@@ -13,7 +12,7 @@ def to_local(path, prefix_remote):
     return path
 
 
-def forward(device_name, name, forward_from, forward_to, stop_event, shared_drive=""):
+def forward(forward_from, forward_to, stop_event, shared_drive=""):
     # Forward messages untill Killed
     while not stop_event.wait(0):
         try:
@@ -25,9 +24,9 @@ def forward(device_name, name, forward_from, forward_to, stop_event, shared_driv
             # for i, mess in enumerate(message):
             #   print(i, mess)
             forward_to.put((success, message, results))
-            if not success and message == 'quit':
-                break
-        except Exception:
+            # if not success and message == 'quit':
+            #     break
+        except Exception as e:
             pass
 
 
@@ -71,25 +70,23 @@ class WorkerServer(ZMQServer):
             return self.terminate_worker(device_name, name)
 
     def initialize_forwarding(self, device_name, name, to_worker, from_worker, port, address, shared_drive_remote):
-        from_extern = context.socket(zmq.PULL)
-        port_from_worker_back = from_extern.bind_to_random_port('tcp://*')
-        from_extern = ReadQueue(from_extern, None)
-        thread_from_worker_back = Thread(target=forward, args=(device_name, name, from_extern, from_worker, self.kill_threads[device_name][name]))
-        thread_from_worker_back.start()
+        from_extern_sock = context.socket(zmq.PULL)
+        port_from_extern = from_extern_sock.bind_to_random_port('tcp://*')
+        from_extern = ReadQueue(from_extern_sock, None)
 
-        from_extern = context.socket(zmq.PULL)
-        port_from_extern = from_extern.bind_to_random_port('tcp://*')
-        from_extern = ReadQueue(from_extern, None)
-        thread_to_worker = Thread(target=forward, args=(device_name, name, from_extern, to_worker, self.kill_threads[device_name][name], shared_drive_remote))
-        thread_to_worker.start()
+        to_extern_sock = context.socket(zmq.PUSH)
+        to_extern_sock.connect('tcp://{}:{}'.format(address, port))
+        to_extern = WriteQueue(to_extern_sock)
 
-        to_extern = context.socket(zmq.PUSH)
-        to_extern.connect('tcp://{}:{}'.format(address, port))
-        to_extern = WriteQueue(to_extern)
-        thread_from_worker = Thread(target=forward, args=(device_name, name, from_worker, to_extern, self.kill_threads[device_name][name]))
-        thread_from_worker.start()
+        process_to_worker = Thread(target=forward, args=(from_extern, to_worker, self.kill_threads[device_name][name], shared_drive_remote))
+        process_to_worker.daemon =True
+        process_to_worker.start()
 
-        return port_from_extern, port_from_worker_back
+        process_from_worker = Thread(target=forward, args=(from_worker, to_extern, self.kill_threads[device_name][name]))
+        process_from_worker.daemon =True
+        process_from_worker.start()
+
+        return port_from_extern
 
     def terminate_worker(self, device_name, name):
         print("Terminating (Device: {}, Worker: {})".format(device_name, name))
@@ -100,7 +97,7 @@ class WorkerServer(ZMQServer):
         # terminate Worker
         if device_name in self.workers and name in self.workers[device_name]:
             worker = self.workers[device_name].pop(name)
-            return worker.terminate()
+            worker.terminate()
         return True
 
     def shutdown(self, signal, frame):
