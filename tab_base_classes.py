@@ -11,7 +11,7 @@
 #                                                                   #
 #####################################################################
 
-from zprocess import Process
+import zprocess
 from Queue import Queue as Queue
 import time
 import sys
@@ -748,7 +748,7 @@ class Tab(object):
 
 import socket
 from labscript_utils.labconfig import LabConfig
-class RemoteWorker():
+class RemoteWorker(object):
     def init(self):
         # To be overridden by subclasses
         pass
@@ -757,7 +757,7 @@ class RemoteWorker():
         self.WorkerClass = WorkerClass
         remote_address = remote_address.split(":")
         self.remote_address = remote_address[0]
-        if len(remote_address)>0:
+        if len(remote_address) > 1:
 	        self.remote_port = int(remote_address[1])
         else:
             self.remote_port = 5789
@@ -777,11 +777,11 @@ class RemoteWorker():
 
         # Initialize Worker
         data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address, 'shared_drive': shared_drive}
-        to_worker_port, from_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=2)
+        to_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=2)
 
-        from_worker_back = zprocess.context.socket(zprocess.zmq.PUSH)
-        from_worker_back.connect('tcp://{}:{}'.format(self.remote_address, from_worker_port))
-        self.from_worker = zprocess.ReadQueue(from_worker, from_worker_back)
+        to_self = zprocess.context.socket(zprocess.zmq.PUSH)
+        to_self.connect('tcp://127.0.0.1:{}'.format(port_from_worker))
+        self.from_worker = zprocess.ReadQueue(from_worker, to_self)
 
         to_worker = zprocess.context.socket(zprocess.zmq.PUSH)
         to_worker.connect('tcp://{}:{}'.format(self.remote_address, to_worker_port))
@@ -792,11 +792,11 @@ class RemoteWorker():
     def terminate(self):
         data = {'action': 'terminate', 'name': self.name, 'device_name': self.device_name}
         try:
-            return zprocess.zmq_get(5789, self.remote_address, data, timeout=1)
+            return zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=1)
         except zprocess.TimeoutError:
             pass
-        
-class Worker(Process):
+
+class Worker(zprocess.Process):
     def init(self):
         # To be overridden by subclasses
         pass
