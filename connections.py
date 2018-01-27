@@ -17,6 +17,7 @@ import logging
 import labscript_utils.excepthook
 import numpy as np
 import copy
+from labscript.labscript import _RemoteBLACSConnection
 
 class ConnectionTable(object):    
     def __init__(self, h5file):
@@ -118,14 +119,36 @@ class ConnectionTable(object):
         attribute is non-empty. Returns a dictionary of them in the form
         {device_instance_name: labscript_class_name}"""
         attached_devices = {}
+        remote_devices = {}
+        remote_brokers = {}
         for device in self.table:
             if device['BLACS_connection']:
-                # The device is connected to BLACS.
                 # What's it's name, and it's labscript class name?
                 # What's its labscript class name?
                 instance_name = device['name']
                 labscript_device_class_name = device['class']
+
+                # Lets check if the device is a Remote Device
+                remote_connections = device['BLACS_connection'].split(_RemoteBLACSConnection.delimeter)[:-1]
+                if len(remote_connections) > 0:
+                    # save Remote Devices seperately to process them later
+                    remote_devices.setdefault(remote_connections[-1], {})
+                    remote_devices[remote_connections[-1]][instance_name] = labscript_device_class_name
+                    continue
+                if device['class'] == 'RemoteWorkerBroker':
+                    remote_brokers[instance_name] = device['BLACS_connection']
+                    continue
+                elif device['class'] == 'SecondaryControlSystem':
+                    # ToDo: Handle Secondary Control Systems
+                    continue
+
+                # The device is connected to BLACS.
                 attached_devices[instance_name] = labscript_device_class_name
+
+        # Add all Devices attached to a broker to the local list
+        for broker_name, connection in remote_brokers.items():
+            attached_devices.update(remote_devices.get(broker_name, {}))
+
         return attached_devices
         
     # Returns the "Connection" object which is a child of "device_name", connected via "parent_port"
@@ -185,9 +208,11 @@ class Connection(object):
             self._unit_conversion_params = labscript_utils.properties.deserialise(unit_conversion_params)
         else:
             self._unit_conversion_params = eval(unit_conversion_params)
-            
-        self.BLACS_connection = BLACS_connection
-        
+
+        connections = BLACS_connection.split(_RemoteBLACSConnection.delimeter)
+        self.BLACS_connection = connections[-1]
+        self.remote_connections = connections[:-1] if len(connections) >1 else None
+
         # DEPRECATED: backwards compatibility for old way of storing properties in connection table
         if properties.startswith(labscript_utils.properties.JSON_IDENTIFIER):
             self._properties = labscript_utils.properties.deserialise(properties)
