@@ -251,14 +251,22 @@ class Tab(object):
         self._device_widget = self._ui.device_controls
         self._changed_widget = self._ui.changed_widget
         self._changed_layout = self._ui.changed_layout
-        self._changed_widget.hide()        
-        self.BLACS_connection = self.settings['connection_table'].find_by_name(self.device_name).BLACS_connection
-        connection_table_properties = self.settings['connection_table'].find_by_name(self.device_name).properties
-        if "worker_host" in connection_table_properties:
-            self.worker_host = connection_table_properties["worker_host"]
+        self._changed_widget.hide()
+        connection = self.settings['connection_table'].find_by_name(self.device_name)
+        self.BLACS_connection = connection.BLACS_connection
+        self.remote_connections = connection.remote_connections
+        if self.remote_connections is None:
+            connection_string = str(self.BLACS_connection)
         else:
-            self.worker_host = ""
-        self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name),str(self.BLACS_connection)))
+            connection_string = '|'.join(self.remote_connections) + '|' + str(self.BLACS_connection)
+        self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name), connection_string))
+
+        self.worker_host = None
+        if self.remote_connections is not None and len(self.remote_connections) == 1:
+            remote_connection = self.settings['connection_table'].find_by_name(self.remote_connections[0])
+            if remote_connection.device_class == "RemoteWorkerBroker":
+                self.worker_host = remote_connection.BLACS_connection
+
         elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
         elide_label(self._ui.state_label, self._ui.state_label_layout, Qt.ElideRight)
         # connect signals
@@ -419,8 +427,8 @@ class Tab(object):
             # This is here so that we can display "(GUI)" in the status bar and have the user confident this is actually happening in the GUI,
             # not in a worker process named GUI
             raise Exception('You cannot call a worker process "GUI". Why would you want to? Your worker process cannot interact with the BLACS GUI directly, so you are just trying to confuse yourself!')
-        
-        if self.worker_host == "":
+
+        if self.worker_host is None:
             worker = WorkerClass()
         else:
             worker = RemoteWorker(WorkerClass, self.worker_host)
@@ -428,11 +436,9 @@ class Tab(object):
         try:
             to_worker, from_worker = worker.start(name, self.device_name, workerargs)
         except zprocess.TimeoutError:
-                now = time.strftime('%a %b %d, %H:%M:%S ',time.localtime())
-                self.error_message += ('Exception in remote worker - %s:<br />' % now +
-                                               '<FONT COLOR=\'#ff0000\'>%s</FONT><br />'%"Server not found".replace(' ','&nbsp;').replace('\n','<br />'))
-                self.state = 'fatal error'
-                return
+                to_worker = Queue()
+                from_worker = Queue()
+                from_worker.put((False, 'Connection to Remote Broker Server at {} failed. Please check, that the server is running.'.format(self.worker_host), None))
         self.workers[name] = (worker,to_worker,from_worker)
         self.event_queue.put(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,False,[Tab._initialise_worker,[(name,),{}]],prepend=True)
        
@@ -676,10 +682,6 @@ class Tab(object):
                             except:
                                 self.error_message += 'Attempt to pass unserialisable object to child process:'
                                 raise
-                            # Catch not connected Remote Worker error
-                            if not worker_process in workers:
-                                break_main_loop = True
-                                break
                             # Send the command to the worker
                             to_worker = workers[worker_process][1]
                             from_worker = workers[worker_process][2]
