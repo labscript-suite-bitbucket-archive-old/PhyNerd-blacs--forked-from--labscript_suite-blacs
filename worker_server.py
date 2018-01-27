@@ -1,5 +1,6 @@
 from threading import Thread, Event
-from zprocess import WriteQueue, ReadQueue, context, ZMQServer, zmq
+from zprocess import WriteQueue, ReadQueue, context, ZMQServer
+import zmq
 import os
 
 
@@ -78,13 +79,13 @@ class WorkerServer(ZMQServer):
         to_extern_sock.connect('tcp://{}:{}'.format(address, port))
         to_extern = WriteQueue(to_extern_sock)
 
-        process_to_worker = Thread(target=forward, args=(from_extern, to_worker, self.kill_threads[device_name][name], shared_drive_remote))
-        process_to_worker.daemon =True
-        process_to_worker.start()
+        thread_to_worker = Thread(target=forward, args=(from_extern, to_worker, self.kill_threads[device_name][name], shared_drive_remote))
+        thread_to_worker.daemon = True
+        thread_to_worker.start()
 
-        process_from_worker = Thread(target=forward, args=(from_worker, to_extern, self.kill_threads[device_name][name]))
-        process_from_worker.daemon =True
-        process_from_worker.start()
+        thread_from_worker = Thread(target=forward, args=(from_worker, to_extern, self.kill_threads[device_name][name]))
+        thread_from_worker.daemon = True
+        thread_from_worker.start()
 
         return port_from_extern
 
