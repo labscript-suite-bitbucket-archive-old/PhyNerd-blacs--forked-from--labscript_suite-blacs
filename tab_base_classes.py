@@ -21,6 +21,7 @@ import traceback
 import logging
 import cgi
 import os
+import socket
 from types import GeneratorType
 
 # import labscript_utils.excepthook
@@ -34,6 +35,7 @@ from qtutils import *
 import qtutils.icons
 
 from labscript_utils.qtwidgets.elide_label import elide_label
+from labscript_utils.labconfig import LabConfig
 
 class Counter(object):
     """A class with a single method that 
@@ -748,11 +750,24 @@ class Tab(object):
             inmain(self._ui.button_close.setEnabled,False)
         logger.info('Exiting')
 
-import socket
-from labscript_utils.labconfig import LabConfig
+
+class ProxyQueue(object):
+    def __init__(self):
+        self.queue = Queue()
+        self.sock = None
+
+    def __getattr__(self, attr):
+        return getattr(self.queue, attr)
+
+    def replace_queue(self, queue):
+        old_queue = self.queue
+        self.queue = queue
+        while not old_queue.empty():
+            self.queue.put(old_queue.get())
+
+
 class RemoteWorker(object):
     def init(self):
-        # To be overridden by subclasses
         pass
 
     def __init__(self, WorkerClass, remote_address):
@@ -764,14 +779,23 @@ class RemoteWorker(object):
         else:
             self.remote_port = 5789
         self.local_address = socket.gethostbyname(socket.gethostname())
-        pass
+        self.to_worker = ProxyQueue()
+        self.from_worker = ProxyQueue()
 
     def start(self, name, device_name, workerargs):
         self.name = name
         self.device_name = device_name
 
+        # establish connection in a thread to keep BLACS from freezing
+        connecting_thread = threading.Thread(target=self.establish_connection, args=(workerargs,))
+        connecting_thread.daemon = True
+        connecting_thread.start()
+
+        return self.to_worker, self.from_worker
+
+    def establish_connection(self, workerargs):
         from_worker = zprocess.context.socket(zprocess.zmq.PULL)
-        port_from_worker = from_worker.bind_to_random_port('tcp://*')  # try address = *
+        port_from_worker = from_worker.bind_to_random_port('tcp://*')
 
         # Get Path to Shareddrive
         _config = LabConfig(required_params={'paths':['shared_drive']})
@@ -779,17 +803,22 @@ class RemoteWorker(object):
 
         # Initialize Worker
         data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address, 'shared_drive': shared_drive}
-        to_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=2)
+        try:
+            to_worker_port = zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=5)
+            to_self = zprocess.context.socket(zprocess.zmq.PUSH)
+            to_self.connect('tcp://127.0.0.1:{}'.format(port_from_worker))
 
-        to_self = zprocess.context.socket(zprocess.zmq.PUSH)
-        to_self.connect('tcp://127.0.0.1:{}'.format(port_from_worker))
-        self.from_worker = zprocess.ReadQueue(from_worker, to_self)
+            to_worker = zprocess.context.socket(zprocess.zmq.PUSH)
+            to_worker.connect('tcp://{}:{}'.format(self.remote_address, to_worker_port))
 
-        to_worker = zprocess.context.socket(zprocess.zmq.PUSH)
-        to_worker.connect('tcp://{}:{}'.format(self.remote_address, to_worker_port))
-        self.to_worker = zprocess.WriteQueue(to_worker)
+            self.from_worker.replace_queue(zprocess.ReadQueue(from_worker, to_self))
+            self.to_worker.replace_queue(zprocess.WriteQueue(to_worker))
+        except Exception:
+            from_worker.close()
 
-        return self.to_worker, self.from_worker
+            success = False
+            message = traceback.format_exc()
+            self.from_worker.put((success, message, None))
 
     def terminate(self):
         data = {'action': 'terminate', 'name': self.name, 'device_name': self.device_name}
@@ -797,6 +826,9 @@ class RemoteWorker(object):
             return zprocess.zmq_get(self.remote_port, self.remote_address, data, timeout=1)
         except zprocess.TimeoutError:
             pass
+        if self.from_worker.sock is not None:
+            self.from_worker.sock.close()
+
 
 class Worker(zprocess.Process):
     def init(self):
