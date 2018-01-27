@@ -261,13 +261,8 @@ class Tab(object):
             connection_string = str(self.BLACS_connection)
         else:
             connection_string = '|'.join(self.remote_connections) + '|' + str(self.BLACS_connection)
-        self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name), connection_string))
 
-        self.worker_host = None
-        if self.remote_connections is not None and len(self.remote_connections) == 1:
-            remote_connection = self.settings['connection_table'].find_by_name(self.remote_connections[0])
-            if remote_connection.device_class == "RemoteWorkerBroker":
-                self.worker_host = remote_connection.BLACS_connection
+        self._ui.device_name.setText("<b>%s</b> [conn: %s]"%(str(self.device_name), connection_string))
 
         elide_label(self._ui.device_name, self._ui.horizontalLayout, Qt.ElideRight)
         elide_label(self._ui.state_label, self._ui.state_label_layout, Qt.ElideRight)
@@ -430,17 +425,15 @@ class Tab(object):
             # not in a worker process named GUI
             raise Exception('You cannot call a worker process "GUI". Why would you want to? Your worker process cannot interact with the BLACS GUI directly, so you are just trying to confuse yourself!')
 
-        if self.worker_host is None:
-            worker = WorkerClass()
-        else:
-            worker = RemoteWorker(WorkerClass, self.worker_host)
+        local_worker = True
+        if self.remote_connections is not None and len(self.remote_connections) == 1:
+            remote_connection = self.settings['connection_table'].find_by_name(self.remote_connections[0])
+            if remote_connection.device_class == "RemoteWorkerBroker":
+                local_worker = False
 
-        try:
-            to_worker, from_worker = worker.start(name, self.device_name, workerargs)
-        except zprocess.TimeoutError:
-                to_worker = Queue()
-                from_worker = Queue()
-                from_worker.put((False, 'Connection to Remote Broker Server at {} failed. Please check, that the server is running.'.format(self.worker_host), None))
+        worker = WorkerClass() if local_worker else RemoteWorker(WorkerClass, remote_connection.BLACS_connection)
+        to_worker, from_worker = worker.start(name, self.device_name, workerargs)
+
         self.workers[name] = (worker,to_worker,from_worker)
         self.event_queue.put(MODE_MANUAL|MODE_BUFFERED|MODE_TRANSITION_TO_BUFFERED|MODE_TRANSITION_TO_MANUAL,True,False,[Tab._initialise_worker,[(name,),{}]],prepend=True)
        
@@ -798,8 +791,8 @@ class RemoteWorker(object):
         port_from_worker = from_worker.bind_to_random_port('tcp://*')
 
         # Get Path to Shareddrive
-        _config = LabConfig(required_params={'paths':['shared_drive']})
-        shared_drive = _config.get('paths','shared_drive')
+        _config = LabConfig(required_params={'paths': ['shared_drive']})
+        shared_drive = _config.get('paths', 'shared_drive')
 
         # Initialize Worker
         data = {'action': 'start', 'WorkerClass': self.WorkerClass, 'name': self.name, 'device_name': self.device_name, 'workerargs': workerargs, 'port_from_worker': port_from_worker, 'address_from_worker': self.local_address, 'shared_drive': shared_drive}
@@ -813,11 +806,14 @@ class RemoteWorker(object):
 
             self.from_worker.replace_queue(zprocess.ReadQueue(from_worker, to_self))
             self.to_worker.replace_queue(zprocess.WriteQueue(to_worker))
-        except Exception:
+        except Exception as e:
             from_worker.close()
-
             success = False
-            message = traceback.format_exc()
+            if isinstance(e, zprocess.TimeoutError):
+                message = 'Connecting to the remote worker broker at {}:{} failed. Please check, that the server is running.'.format(self.remote_address, self.remote_port)
+            else:
+                message = traceback.format_exc()
+            from_worker.close()
             self.from_worker.put((success, message, None))
 
     def terminate(self):
