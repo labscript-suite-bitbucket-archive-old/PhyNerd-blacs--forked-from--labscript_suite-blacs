@@ -43,7 +43,7 @@ try:
 except ImportError:
     raise ImportError('Require labscript_utils > 2.1.0')
 
-check_version('labscript_utils', '2.3.1', '3')
+check_version('labscript_utils', '2.6.', '3')
 check_version('qtutils', '2.0.0', '3.0.0')
 check_version('zprocess', '1.1.2', '3')
 check_version('labscript_devices', '2.0', '3')
@@ -134,20 +134,20 @@ from qtutils import *
 # And for icons:
 import qtutils.icons
 # Analysis Submission code
-from analysis_submission import AnalysisSubmission
+from blacs.analysis_submission import AnalysisSubmission
 # Queue Manager Code
-from queue import QueueManager, QueueTreeview
+from blacs.experiment_queue import QueueManager, QueueTreeview
 # Module containing hardware compatibility:
 import labscript_devices
 # Save/restore frontpanel code
-from front_panel_settings import FrontPanelSettings
+from blacs.front_panel_settings import FrontPanelSettings
 # Notifications system
-from notifications import Notifications
+from blacs.notifications import Notifications
 # Preferences system
 from labscript_utils.settings import Settings
 #import settings_pages
-import plugins
-from input_forwarder import Forwarder
+import blacs.plugins as plugins
+from blacs.input_forwarder import Forwarder
 
 os.chdir(os.path.abspath(os.path.dirname(__file__)))
 
