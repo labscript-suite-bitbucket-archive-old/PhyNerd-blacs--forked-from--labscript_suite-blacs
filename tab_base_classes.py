@@ -36,6 +36,7 @@ import qtutils.icons
 
 from labscript_utils.qtwidgets.elide_label import elide_label
 from labscript_utils.labconfig import LabConfig
+from blacs import BLACS_DIR
 
 class Counter(object):
     """A class with a single method that 
@@ -248,7 +249,7 @@ class Tab(object):
         self._restart_receiver = []
         
         # Load the UI
-        self._ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'tab_frame.ui'))
+        self._ui = UiLoader().load(os.path.join(BLACS_DIR, 'tab_frame.ui'))
         self._layout = self._ui.device_layout
         self._device_widget = self._ui.device_controls
         self._changed_widget = self._ui.changed_widget
@@ -1091,7 +1092,7 @@ if __name__ == '__main__':
     import logging.handlers
     # Setup logging:
     logger = logging.getLogger('BLACS')
-    handler = logging.handlers.RotatingFileHandler('BLACS.log', maxBytes=1024**2, backupCount=0)
+    handler = logging.handlers.RotatingFileHandler(os.path.join(BLACS_DIR, 'BLACS.log'), maxBytes=1024**2, backupCount=0)
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
     handler.setFormatter(formatter)
     handler.setLevel(logging.DEBUG)
