@@ -1,6 +1,6 @@
 #####################################################################
 #                                                                   #
-# /queue.py                                                         #
+# /experiment_queue.py                                                         #
 #                                                                   #
 # Copyright 2013, Monash University                                 #
 #                                                                   #
@@ -30,9 +30,8 @@ zprocess.locking.set_client_process_name('BLACS.queuemanager')
 from qtutils import *
 
 from labscript_utils.qtwidgets.elide_label import elide_label
+from labscript_utils.connections import ConnectionTable
 
-# Connection Table Code
-from connections import ConnectionTable
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED  
 
 FILEPATH_COLUMN = 0
@@ -387,8 +386,8 @@ class QueueManager(object):
     def process_request(self,h5_filepath):
         # check connection table
         try:
-            new_conn = ConnectionTable(h5_filepath)
-        except:
+            new_conn = ConnectionTable(h5_filepath, logging_prefix='BLACS')
+        except Exception:
             return "H5 file not accessible to Control PC\n"
         result,error = inmain(self.BLACS.connection_table.compare_to,new_conn)
         if result:
@@ -430,13 +429,18 @@ class QueueManager(object):
                        "The error was %s\n"%error)
             return message
             
-    
     def new_rep_name(self, h5_filepath):
-        basename = os.path.basename(h5_filepath).split('.h5')[0]
-        if '_rep' in basename:
-            reps = int(basename.split('_rep')[1])
-            return h5_filepath.split('_rep')[-2] + '_rep%05d.h5' % (reps + 1), reps + 1
-        return h5_filepath.split('.h5')[0] + '_rep%05d.h5' % 1, 1
+        basename, ext = os.path.splitext(h5_filepath)
+        if '_rep' in basename and ext == '.h5':
+            reps = basename.split('_rep')[-1]
+            try:
+                reps = int(reps)
+            except ValueError:
+                # not a rep
+                pass
+            else:
+                return ''.join(basename.split('_rep')[:-1]) + '_rep%05d.h5' % (reps + 1), reps + 1
+        return basename + '_rep%05d.h5' % 1, 1
         
     def clean_h5_file(self, h5file, new_h5_file, repeat_number=0):
         try:
@@ -891,7 +895,7 @@ class QueueManager(object):
             send_to_analysis = True
             for callback in self.get_callbacks('analysis_cancel_send'):
                 try:
-                    if callback(path) is True:
+                    if callback(path):
                         send_to_analysis = False
                         break
                 except Exception:
@@ -902,9 +906,30 @@ class QueueManager(object):
                 self.BLACS.analysis_submission.get_queue().put(['file', path])
 
             ##########################################################################################################################################
-            #                                                        Repeat Experiment?                                                              #
+            #                                                        Plugin callbacks                                                                #
             ########################################################################################################################################## 
-            if self.manager_repeat:
+            for plugin in self.BLACS.plugins.values():
+                callbacks = plugin.get_callbacks()
+                if isinstance(callbacks, dict) and 'shot_complete' in callbacks:
+                    try:
+                        callbacks['shot_complete'](path)
+                    except Exception:
+                        logger.exception("Plugin callback raised an exception")
+
+            ##########################################################################################################################################
+            #                                                        Repeat Experiment?                                                              #
+            ##########################################################################################################################################
+            # check for repeat Filters in Plugins
+            repeat_shot = self.manager_repeat
+            for callback in self.get_callbacks('shot_ignore_repeat'):
+                try:
+                    if callback(path):
+                        repeat_shot = False
+                        break
+                except Exception:
+                    logger.exception("Plugin callback raised an exception")
+
+            if repeat_shot:
                 if ((self.manager_repeat_mode == self.REPEAT_ALL) or
                     (self.manager_repeat_mode == self.REPEAT_LAST and inmain(self._model.rowCount) == 0)):
                     # Resubmit job to the bottom of the queue:
