@@ -745,19 +745,47 @@ class Tab(object):
         logger.info('Exiting')
 
 
-class ProxyQueue(object):
+class ProxyWriteQueue(object):
     def __init__(self):
         self.queue = Queue()
+        self.lock = threading.Lock()
         self.sock = None
 
-    def __getattr__(self, attr):
-        return getattr(self.queue, attr)
+    def put(self, obj):
+        with self.lock:
+            return self.queue.put(obj)
 
     def replace_queue(self, queue):
         old_queue = self.queue
-        self.queue = queue
-        while not old_queue.empty():
-            self.queue.put(old_queue.get())
+        self.sock = queue.sock
+        with self.lock:
+            self.queue = queue
+            while not old_queue.empty():
+                self.queue.put(old_queue.get())
+
+
+class ProxyReadQueue(object):
+    def __init__(self):
+        self.queue = Queue()
+        self.readqueue = None
+        self.sock = None
+
+    def put(self, obj):
+        return self.queue.put(obj)
+
+    def get(self, *args, **kwargs):
+        return self.queue.get(*args, **kwargs)
+
+    def replace_queue(self, queue):
+        self.sock = queue.sock
+        self.readqueue = queue
+        forward_thread = threading.Thread(target=self._forward)
+        forward_thread.daemon = True
+        forward_thread.start()
+
+    def _forward(self):
+        while True:
+            self.queue.put(self.readqueue.get())
 
 
 class RemoteWorker(object):
@@ -773,8 +801,8 @@ class RemoteWorker(object):
         else:
             self.remote_port = 5789
         self.local_address = socket.gethostbyname(socket.gethostname())
-        self.to_worker = ProxyQueue()
-        self.from_worker = ProxyQueue()
+        self.to_worker = ProxyWriteQueue()
+        self.from_worker = ProxyReadQueue()
 
     def start(self, name, device_name, workerargs):
         self.name = name
