@@ -10,9 +10,11 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
 from labscript_utils import PY2
 if PY2:
-     memoryview = buffer
+    str = unicode
+    memoryview = buffer
 
 import logging
 import sys
@@ -30,6 +32,7 @@ from qtutils.qt.QtWidgets import *
 import labscript_utils.excepthook
 from qtutils import UiLoader
 
+from blacs import BLACS_DIR
 from blacs.tab_base_classes import Tab, Worker, define_state
 from blacs.tab_base_classes import MODE_MANUAL, MODE_TRANSITION_TO_BUFFERED, MODE_TRANSITION_TO_MANUAL, MODE_BUFFERED
 from blacs.output_classes import AI, AO, DO, DDS
@@ -346,11 +349,11 @@ class DeviceTab(Tab):
                 # ignore things that are not dictionaries or empty dictionaries
                 if type(arg) != type({}) or len(arg.keys()) < 1:
                     continue
-                if isinstance(self.get_channel(arg.keys()[0]),AO):
+                if isinstance(self.get_channel(list(arg.keys())[0]),AO):
                     name = 'Analog Outputs'
-                elif isinstance(self.get_channel(arg.keys()[0]),DO):
+                elif isinstance(self.get_channel(list(arg.keys())[0]),DO):
                     name = 'Digital Outputs'
-                elif isinstance(self.get_channel(arg.keys()[0]),DDS):
+                elif isinstance(self.get_channel(list(arg.keys())[0]),DDS):
                     name = 'DDS Outputs'
                 elif isinstance(self.get_channel(arg.keys()[0]),AI):
                     name = 'Analog Inputs'
@@ -524,7 +527,7 @@ class DeviceTab(Tab):
                         changed = True
                         
                 if changed:
-                    ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'tab_value_changed_dds.ui'))
+                    ui = UiLoader().load(os.path.join(BLACS_DIR, 'tab_value_changed_dds.ui'))
                     ui.channel_label.setText(self._DDS[channel].name)
                     for sub_chnl in front_value:
                         ui.__getattribute__('front_%s_value'%sub_chnl).setText(front_values_formatted[sub_chnl])
@@ -543,7 +546,7 @@ class DeviceTab(Tab):
                 remote_value = str(bool(int(remote_value)))
                 if front_value != remote_value:
                     changed = True
-                    ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'tab_value_changed.ui'))
+                    ui = UiLoader().load(os.path.join(BLACS_DIR, 'tab_value_changed.ui'))
                     ui.channel_label.setText(self._DO[channel].name)
                     ui.front_value.setText(front_value)
                     ui.remote_value.setText(remote_value)
@@ -553,7 +556,7 @@ class DeviceTab(Tab):
                 remote_value = ("%."+str(self._AO[channel]._decimals)+"f")%remote_value
                 if front_value != remote_value:
                     changed = True
-                    ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)),'tab_value_changed.ui'))
+                    ui = UiLoader().load(os.path.join(BLACS_DIR, 'tab_value_changed.ui'))
                     ui.channel_label.setText(self._AO[channel].name)
                     ui.front_value.setText(front_value)
                     ui.remote_value.setText(remote_value)
@@ -782,12 +785,12 @@ if __name__ == '__main__':
     import logging.handlers
     # Setup logging:
     logger = logging.getLogger('BLACS')
-    handler = logging.handlers.RotatingFileHandler('BLACS.log', maxBytes=1024**2, backupCount=0)
+    handler = logging.handlers.RotatingFileHandler(os.path.join(BLACS_DIR, 'BLACS.log'), maxBytes=1024**2, backupCount=0)
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
     handler.setFormatter(formatter)
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
-    if sys.stdout.isatty():
+    if sys.stdout is not None and sys.stdout.isatty():
         terminalhandler = logging.StreamHandler(sys.stdout)
         terminalhandler.setFormatter(formatter)
         terminalhandler.setLevel(logging.DEBUG)
@@ -851,7 +854,10 @@ if __name__ == '__main__':
     
             # Create buttons to test things!
             button1 = QPushButton("Transition to Buffered")
-            from Queue import Queue
+            if PY2:
+                from Queue import Queue
+            else:
+                from queue import Queue
             button1.clicked.connect(lambda: self.transition_to_buffered('',Queue()))
             self.get_tab_layout().addWidget(button1)
             button2 = QPushButton("Transition to Manual")

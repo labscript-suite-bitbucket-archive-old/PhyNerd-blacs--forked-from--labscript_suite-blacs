@@ -10,18 +10,24 @@
 # the project for the full license.                                 #
 #                                                                   #
 #####################################################################
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    from Queue import Queue
+else:
+    from queue import Queue
 
 import logging
 import os
 import subprocess
 import threading
 import sys
-from Queue import Queue
 
 from qtutils import UiLoader
 
 from labscript_utils.shared_drive import path_to_agnostic
 import zprocess.locking
+from blacs.plugins import PLUGINS_DIR
 
 name = "Delete repeated shots"
 module = "delete_repeated_shots" # should be folder name
@@ -49,7 +55,7 @@ class Plugin(object):
         self.BLACS = BLACS
 
         # Add our controls to the BLACS UI:
-        self.ui = UiLoader().load(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'controls.ui'))
+        self.ui = UiLoader().load(os.path.join(PLUGINS_DIR, module, 'controls.ui'))
         BLACS['ui'].queue_controls_frame.layout().addWidget(self.ui)
 
         # Restore settings to the GUI controls:
@@ -154,4 +160,4 @@ class Plugin(object):
     def set_notification_instances(self, notifications):
         self.notifications = notifications
         
-    
+    
