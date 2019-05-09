@@ -38,6 +38,7 @@ import socket
 import subprocess
 import sys
 import time
+import threading
 
 import signal
 # Quit on ctrl-c
@@ -158,6 +159,7 @@ from blacs.notifications import Notifications
 from labscript_utils.settings import Settings
 #import settings_pages
 import blacs.plugins as plugins
+from blacs.input_forwarder import Forwarder
 
 from blacs import BLACS_DIR
 
@@ -204,6 +206,7 @@ class BLACSWindow(QMainWindow):
 
                 inmain_later(self.blacs.on_save_exit)
 
+            self.blacs.broker.terminate()
             QTimer.singleShot(100,self.close)
 
 
@@ -326,6 +329,32 @@ class BLACS(object):
             self.tab_widgets[i] = DragDropTabWidget(self.tab_widget_ids)
             self.tab_widgets[i].setElideMode(Qt.ElideRight)
             getattr(self.ui,'tab_container_%d'%i).addWidget(self.tab_widgets[i])
+
+        logger.info('Creating Aquisition Broker')
+        self.broker = Forwarder()
+
+        try:
+            pub_port = int(self.exp_config.get('ports', 'BLACS_Broker_Pub'))
+        except LabConfig.NoOptionError:
+            self.exp_config.set('ports', 'BLACS_Broker_Pub', '50355')
+            pub_port = 50355
+
+        try:
+            sub_port = int(self.exp_config.get('ports', 'BLACS_Broker_Sub'))
+        except LabConfig.NoOptionError:
+            self.exp_config.set('ports', 'BLACS_Broker_Sub', '50354')
+            sub_port = 50354
+
+        to_child, from_child = self.broker.start(pub_port, sub_port)
+
+        def _check_broker(from_child):
+            exception = format(from_child.get())
+            if exception != 'terminated':
+                raise(Exception(exception))
+
+        self.broker_error_thread = threading.Thread(target=_check_broker, args=(from_child,))
+        self.broker_error_thread.daemon = True
+        self.broker_error_thread.start()
 
         logger.info('Instantiating devices')
         self.failed_device_settings = {}
