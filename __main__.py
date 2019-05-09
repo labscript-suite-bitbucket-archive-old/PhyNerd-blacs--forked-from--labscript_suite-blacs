@@ -294,7 +294,8 @@ class BLACS(object):
 
         def _check_broker(from_child):
             exception = format(from_child.get())
-            raise(Exception(exception))
+            if exception != 'terminated':
+                raise(Exception(exception))
 
         self.broker_error_thread = threading.Thread(target=_check_broker, args=(from_child,))
         self.broker_error_thread.daemon = True
